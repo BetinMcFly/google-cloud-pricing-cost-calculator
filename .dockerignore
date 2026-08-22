@@ -1,0 +1,11 @@
+# Contexto de build del contenedor: solo hacen falta gcosts/ y pricing.yml
+.git
+.github
+.devcontainer
+build/
+tools/
+img/
+t/
+deploy/
+usage/
+*.md

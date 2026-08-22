@@ -1,0 +1,19 @@
+# Que se sube a Cloud Build con `gcloud builds submit`.
+#
+# IMPORTANTE: si este fichero no existe y el directorio es un repo git, gcloud
+# deriva las exclusiones del .gitignore. El .gitignore de este repo descarta
+# `**.yml` y `**.csv` de forma global (con negaciones puntuales), lo que hace
+# fragil e ilegible decidir si pricing.yml o t/*.yml acaban subiendo.
+# Por eso lo declaramos explicitamente aqui.
+#
+# Se necesitan: gcosts/ (codigo), pricing.yml (precios), t/ (fixtures de la
+# prueba de aceptacion), Dockerfile y deploy/.
+.git
+.github
+.devcontainer
+img/
+build/skus.db
+build/skus
+build/skus-*
+gcosts/gcosts
+gcosts/gcosts-*

@@ -1,0 +1,61 @@
+# Build + validacion + push de la imagen de gcosts.
+#
+# La imagen NO se publica si no reproduce los ~543 asertos de t/test.sh.
+# Es la garantia de que contenerizar no altero ningun precio.
+#
+#   gcloud builds submit --config deploy/cloudbuild.yaml \
+#     --substitutions=_TAG=2026-08-20
+#
+# El tag deberia ser la fecha de `about.generated` del pricing.yml horneado.
+
+steps:
+  # 0. Directorio de salida escribible por el usuario nonroot de la imagen (uid 65532)
+  - id: prep
+    name: bash
+    args: ['-c', 'mkdir -p /workspace/out && chmod 777 /workspace/out']
+
+  # 1. Construir
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg=VERSION=${_TAG}
+      - -t=${_IMAGE}:${_TAG}
+      - -t=${_IMAGE}:latest
+      - .
+
+  # 2. Calcular los fixtures del repo con la imagen recien construida
+  - id: smoke-calc
+    name: gcr.io/cloud-builders/docker
+    args:
+      - run
+      - --rm
+      - -v=/workspace:/workspace
+      - ${_IMAGE}:${_TAG}
+      - calc
+      - --dir=/workspace/t
+      - --pricing=/pricing.yml
+      - --csv=/workspace/out/costs.csv
+
+  # 3. Validar el CSV contra los ~543 valores de referencia
+  - id: verify
+    name: bash
+    args:
+      - -c
+      - |
+        set -e
+        cp /workspace/out/costs.csv /workspace/t/costs.csv
+        cd /workspace/t
+        bash test.sh
+
+# Solo se suben si TODOS los pasos anteriores pasaron
+images:
+  - ${_IMAGE}:${_TAG}
+  - ${_IMAGE}:latest
+
+substitutions:
+  _IMAGE: us-central1-docker.pkg.dev/claude-projects-496723/gcosts/gcosts
+  _TAG: dev
+
+options:
+  logging: CLOUD_LOGGING_ONLY
