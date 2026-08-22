@@ -149,3 +149,37 @@ memoria y se pierde en cada arranque en frio.
   encima de la calculadora oficial, y `t/test.sh` anota que en `africa-south1` el precio de lista
   de `n2-standard-8` no cuadra con los SKUs verificados.
 - El free tier se ignora deliberadamente.
+
+---
+
+## 7. Estructura del bucket y respaldos
+
+`gs://gcosts-casos-claude-projects-496723/` tiene dos prefijos con proposito distinto:
+
+| Prefijo | Contenido |
+|---|---|
+| `casos/<cliente>/` | Ficheros de uso `*.yml` y su `costs.csv`. Es lo que se le pasa al job en `--dir` |
+| `respaldos/` | Copias de trabajo que no viven en git. **Nunca apuntar `--dir` aqui** |
+
+El job solo lee el directorio que se le indica en `--dir`, asi que `respaldos/` no interfiere con
+ningun calculo. La regla de "solo ficheros de uso en el directorio" (seccion 3) sigue aplicando
+dentro de `casos/`.
+
+### Restaurar `propuestas-gcp` en una maquina nueva
+
+Los patrones, plantillas, rate card y referencia de propuestas no estan en ningun repo git; su
+unica copia fuera de la VM esta en el bucket. Para recuperarlos:
+
+```bash
+gcloud storage rsync -r \
+  gs://gcosts-casos-claude-projects-496723/respaldos/propuestas-gcp ~/propuestas-gcp
+```
+
+Y para volver a respaldarlos tras cambiarlos (mismo comando con origen y destino invertidos):
+
+```bash
+gcloud storage rsync -r \
+  ~/propuestas-gcp gs://gcosts-casos-claude-projects-496723/respaldos/propuestas-gcp
+```
+
+Verificar con `--dry-run`: si no lista ninguna copia pendiente, ambos lados son identicos.
