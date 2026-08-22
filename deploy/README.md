@@ -30,13 +30,17 @@ ningun precio: los ~543 asertos estan contrastados contra la calculadora oficial
 
 ## 2. Desplegar el job (solo la primera vez, o al cambiar la config)
 
+> **Anclar al digest, no al tag.** Un tag puede reescribirse por un build posterior y cambiar en
+> silencio los precios de un job en produccion. El digest es inmutable:
+> `gcloud artifacts docker images describe IMAGEN:TAG --format='value(image_summary.digest)'`
+
 ```bash
 gcloud run jobs deploy gcosts \
-  --image=us-central1-docker.pkg.dev/claude-projects-496723/gcosts/gcosts:2026-08-20 \
+  --image=us-central1-docker.pkg.dev/claude-projects-496723/gcosts/gcosts@sha256:DIGEST \
   --region=us-central1 \
   --memory=512Mi --cpu=1 --task-timeout=5m --max-retries=1 \
   --service-account=gcosts-job@claude-projects-496723.iam.gserviceaccount.com \
-  --add-volume=name=casos,type=cloud-storage,bucket=GCOSTS_BUCKET \
+  --add-volume=name=casos,type=cloud-storage,bucket=gcosts-casos-claude-projects-496723 \
   --add-volume-mount=volume=casos,mount-path=/mnt/casos
 ```
 
@@ -44,7 +48,7 @@ Para actualizar solo la imagen mas adelante:
 
 ```bash
 gcloud run jobs update gcosts --region=us-central1 \
-  --image=us-central1-docker.pkg.dev/claude-projects-496723/gcosts/gcosts:NUEVO_TAG
+  --image=us-central1-docker.pkg.dev/claude-projects-496723/gcosts/gcosts@sha256:NUEVO_DIGEST
 ```
 
 ---
@@ -54,7 +58,7 @@ gcloud run jobs update gcosts --region=us-central1 \
 ### Preparar los ficheros
 
 ```bash
-gcloud storage cp mi-caso/*.yml gs://GCOSTS_BUCKET/casos/cliente-x/
+gcloud storage cp mi-caso/*.yml gs://gcosts-casos-claude-projects-496723/casos/cliente-x/
 ```
 
 > **El directorio debe contener SOLO ficheros de uso.** `calc` parsea todos los `*.yml` que
@@ -77,7 +81,7 @@ gcloud run jobs execute gcosts --region=us-central1 --args=about --wait
 gcloud run jobs execute gcosts --region=us-central1 --wait \
   --args=calc,--dir=/mnt/casos/casos/cliente-x,--pricing=/pricing.yml,--csv=/mnt/casos/casos/cliente-x/costs.csv
 
-gcloud storage cp gs://GCOSTS_BUCKET/casos/cliente-x/costs.csv .
+gcloud storage cp gs://gcosts-casos-claude-projects-496723/casos/cliente-x/costs.csv .
 ```
 
 **Salida distinta de cero significa que no hay CSV.** `ExportCsv` corre al final del proceso, asi
@@ -114,7 +118,7 @@ uid. Solucion: fijar el uid en las opciones de montaje al desplegar.
 
 ```bash
 gcloud run jobs update gcosts --region=us-central1 \
-  --add-volume=name=casos,type=cloud-storage,bucket=GCOSTS_BUCKET,mount-options="uid=65532,gid=65532"
+  --add-volume=name=casos,type=cloud-storage,bucket=gcosts-casos-claude-projects-496723,mount-options="uid=65532,gid=65532"
 ```
 
 ### `Google Cloud region '...' not found!`
