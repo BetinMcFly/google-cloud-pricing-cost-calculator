@@ -1,0 +1,27 @@
+nombre: prueba
+csv:
+  delimitador: ';'
+filtrar:
+  - columna: Powerstate
+    excluir: ['poweredoff']
+salidas:
+  - tipo: {constante: vm}
+    nombre: {desde: 'VM Name'}
+    region: {constante: us-central1}
+    spec:
+      sizing:
+        vcpu: 'CPUs'
+        ram_gb: 'Memory MB'
+        ram_unidad: MiB
+    so:
+      desde: 'OS'
+      mapa:
+        '*red hat*': rhel
+        '*windows*': windows
+        '*': ''
+  - tipo: {constante: disco}
+    nombre: {desde: 'VM Name', sufijo: '-disco'}
+    spec: {constante: balanced}
+    cantidad: {desde: 'Provisioned MiB', unidad: {de: MiB, a: GiB}}
+    padre: {desde: 'VM Name'}
+    omitir_si_vacio: cantidad

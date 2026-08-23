@@ -1,0 +1,53 @@
+# Perfil de ejemplo: export tipo RVTools/vCenter.
+#
+# Muestra los tres ajustes que el borrador automatico NUNCA puede adivinar,
+# porque no estan en el nombre de la cabecera sino en su contenido:
+#   1. las unidades reales (aqui RAM en MB y disco en MiB)
+#   2. que filas no se calculan (maquinas apagadas)
+#   3. que valores del cliente equivalen a una licencia que Google cobra
+#
+nombre: ejemplo-vmware
+descripcion: |
+  Inventario on-prem de VMware. Una fila por VM, con vCPU y RAM en vez de tipo
+  de maquina: el sizing elige el tipo mas pequeno de GCP que cabe.
+
+csv:
+  delimitador: ';'
+  decimal: '.'
+
+# Una VM apagada no se migra ni se cobra. Si el cliente quiere contarla igual,
+# se quita este filtro y se declara como supuesto en la propuesta.
+filtrar:
+  - columna: Powerstate
+    excluir: ['poweredoff', 'suspended']
+
+salidas:
+  - tipo: {constante: vm}
+    nombre: {desde: 'VM Name'}
+    region: {constante: us-central1}
+    spec:
+      sizing:
+        vcpu: 'CPUs'
+        ram_gb: 'Memory MB'
+        # RVTools rotula la columna 'MB' pero entrega MiB. Declararlo
+        # como MB decimal inflaria la RAM un 4,8% y saltaria al
+        # siguiente tipo de maquina, mas caro.
+        ram_unidad: MiB
+    # 'so' es la licencia que se cobra, no el sistema operativo. Ubuntu, Debian
+    # y CentOS no llevan licencia: el cajon final los deja vacios.
+    so:
+      desde: 'OS according to the VMware Tools'
+      mapa:
+        '*red hat*': rhel
+        '*rhel*': rhel
+        '*suse*': sles
+        '*windows*': windows
+        '*': ''
+    notas: {desde: 'OS according to the VMware Tools', prefijo: 'SO origen: '}
+
+  - tipo: {constante: disco}
+    nombre: {desde: 'VM Name', sufijo: '-disco'}
+    spec: {constante: balanced}
+    cantidad: {desde: 'Provisioned MiB', unidad: {de: MiB, a: GiB}}
+    padre: {desde: 'VM Name'}
+    omitir_si_vacio: cantidad

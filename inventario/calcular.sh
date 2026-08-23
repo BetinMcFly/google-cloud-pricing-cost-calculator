@@ -14,9 +14,19 @@ set -euo pipefail
 CSV="${1:-}"
 CASO="${2:-}"
 REGION="${3:-us-central1}"
+PERFIL="${4:-}"
 
 if [ -z "$CSV" ] || [ -z "$CASO" ]; then
-	echo "uso: bash calcular.sh <inventario.csv> <nombre-del-caso> [region]" >&2
+	cat >&2 <<'USO'
+uso: bash calcular.sh <csv> <nombre-del-caso> [region] [perfil.yml]
+
+  Sin perfil, el CSV tiene que venir ya en el esquema canonico
+  (tipo,nombre,region,spec,cantidad,...). Con perfil, se acepta el CSV tal
+  como lo entrego el cliente y se traduce antes de calcular.
+
+  Para escribir el perfil de un cliente nuevo:
+    python3 inventario.py inspeccionar --csv suyo.csv --borrador perfiles/x.yml
+USO
 	exit 1
 fi
 [ -f "$CSV" ] || { echo "no existe $CSV" >&2; exit 1; }
@@ -28,6 +38,17 @@ JOB="gcosts"
 DESTINO="gs://${BUCKET}/casos/${CASO}"
 TRABAJO="$(mktemp -d)"
 trap 'rm -rf "$TRABAJO"' EXIT
+
+if [ -n "$PERFIL" ]; then
+	[ -f "$PERFIL" ] || { echo "no existe el perfil $PERFIL" >&2; exit 1; }
+	echo "▶ 0/5  Traduciendo el inventario del cliente con $PERFIL"
+	CANONICO="$TRABAJO/canonico.csv"
+	python3 "$AQUI/inventario.py" normalizar \
+		--csv "$CSV" --perfil "$PERFIL" --region "$REGION" --salida "$CANONICO"
+	ORIGINAL="$CSV"
+	CSV="$CANONICO"
+	echo
+fi
 
 echo "▶ 1/5  Convirtiendo el inventario"
 python3 "$AQUI/inventario.py" convertir \
@@ -58,7 +79,8 @@ fi
 
 echo
 echo "▶ 5/5  Uniendo ambos motores"
-SALIDA="${CSV%.csv}-costes.csv"
+SALIDA="${ORIGINAL:-$CSV}"
+SALIDA="${SALIDA%.csv}-costes.csv"
 python3 "$AQUI/inventario.py" calcular \
 	--csv "$CSV" --region "$REGION" \
 	--tarifas "$AQUI/tarifas.yml" \

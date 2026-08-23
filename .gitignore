@@ -50,3 +50,5 @@ gcosts/gcosts*
 !inventario/tarifas.yml
 !inventario/t/*.csv
 !inventario/t/*.yml
+!inventario/perfiles/*.yml
+__pycache__/

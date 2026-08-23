@@ -149,6 +149,79 @@ aborta "inventario con recursos de gcosts pero sin su costs.csv" "no se indico" 
 		--tarifas "$AQUI/t/tarifas.yml" --salida "$TMP/x.csv"
 
 echo
+echo "### Perfiles: inventario de cliente -> esquema canonico"
+
+$INV normalizar --csv "$AQUI/t/cliente.csv" --perfil "$AQUI/t/perfil.yml" \
+	--region us-central1 --salida "$TMP/norm.csv" >"$TMP/norm.txt" 2>&1
+N="$TMP/norm.csv"
+
+if [ ! -f "$N" ]; then
+	fallo "la normalizacion no produjo CSV"
+	cat "$TMP/norm.txt"
+else
+	casa "una fila de cliente da vm y disco"      "$N" "APP-01-disco"
+	if grep -q "APP-03" "$N"; then
+		fallo "filtro: APP-03 esta apagada y no debia aparecer"
+	else
+		ok "filtro: la VM apagada no aparece"
+	fi
+	casa "MiB -> GiB: 512000 MiB = 500 GiB"       "$N" ",500.0,"
+	casa "sizing 8 vCPU / 32 GiB -> el mas barato" "$N" "e2-standard-8"
+	casa "sizing 2 vCPU / 8 GiB"                   "$N" "e2-standard-2"
+	casa "mapa de SO: Red Hat -> rhel"             "$N" ",rhel,"
+	if grep -q "APP-02,us-central1,e2-standard-2,,,," "$N"; then
+		ok "cajon de sastre: Ubuntu queda sin licencia"
+	else
+		fallo "cajon de sastre: Ubuntu debia quedar sin licencia"
+	fi
+	if grep -q "APP-02-disco" "$N"; then
+		fallo "omitir_si_vacio: APP-02 no tiene disco y no debia generar fila"
+	else
+		ok "omitir_si_vacio: sin disco, no hay fila de disco"
+	fi
+fi
+
+printf 'A;B\nx;1\n' >"$TMP/mini.csv"
+cat >"$TMP/malcol.yml" <<'YML2'
+csv: {delimitador: ';'}
+salidas:
+  - tipo: {constante: vm}
+    nombre: {desde: 'NoExiste'}
+YML2
+aborta "perfil que apunta a una columna inexistente" "no tiene la columna" -- \
+	$INV normalizar --csv "$TMP/mini.csv" --perfil "$TMP/malcol.yml" --salida "$TMP/z.csv"
+
+cat >"$TMP/malmapa.yml" <<'YML3'
+csv: {delimitador: ';'}
+salidas:
+  - tipo: {constante: vm}
+    nombre: {desde: 'A'}
+    so: {desde: 'A', mapa: {'*zzz*': rhel}}
+YML3
+aborta "valor que no casa con ningun patron del mapa" "no casa con ningun patron" -- \
+	$INV normalizar --csv "$TMP/mini.csv" --perfil "$TMP/malmapa.yml" --salida "$TMP/z.csv"
+
+cat >"$TMP/malcampo.yml" <<'YML4'
+csv: {delimitador: ';'}
+salidas:
+  - tipo: {constante: vm}
+    nombre: {desde: 'A'}
+    inventado: {constante: x}
+YML4
+aborta "perfil con un campo que no es canonico" "no es un campo" -- \
+	$INV normalizar --csv "$TMP/mini.csv" --perfil "$TMP/malcampo.yml" --salida "$TMP/z.csv"
+
+cat >"$TMP/gpu.yml" <<'YML5'
+csv: {delimitador: ';'}
+salidas:
+  - tipo: {constante: vm}
+    nombre: {desde: 'A'}
+    spec: {sizing: {vcpu: 'B', ram_gb: 'B', familia: 'noexiste'}}
+YML5
+aborta "familia inexistente en el sizing" "no hay tipo de maquina" -- \
+	$INV normalizar --csv "$TMP/mini.csv" --perfil "$TMP/gpu.yml" --salida "$TMP/z.csv"
+
+echo
 printf '🧪 PRUEBAS : %s\n' "$((OK+FALLOS))"
 if [ "$FALLOS" -eq 0 ]; then
 	printf '\033[32m✅ DONE  : All successful\033[0m\n'

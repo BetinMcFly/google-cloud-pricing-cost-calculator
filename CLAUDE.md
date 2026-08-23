@@ -26,8 +26,14 @@ two engines and merges them — `gcosts` for what it covers, and unit prices rea
 from the Cloud Billing Catalog API (`inventario/servicios.csv` maps a resource type
 to exactly one SKU) for everything else.
 
+Client inventories all arrive in different shapes, so `inventario/perfiles/*.yml`
+declares per client how to read theirs: column mapping, unit conversion, row
+filters, value maps, and sizing from vCPU+RAM when there is no machine type. The
+sizing picks the cheapest fitting type using the real prices in the root
+`pricing.yml`, restricted to general-purpose/compute families.
+
 Python, not Go: it orchestrates `gcloud` and the Billing API rather than extending
-the calculator. `bash inventario/test.sh` — 29 checks, no network.
+the calculator. `bash inventario/test.sh` — 41 checks, no network.
 
 - [`inventario/README.md`](inventario/README.md) — CSV schema, how to add a service
 

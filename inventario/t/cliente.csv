@@ -1,0 +1,4 @@
+VM Name;Powerstate;CPUs;Memory MB;Provisioned MiB;OS;Site
+APP-01;poweredOn;8;32768;512000;Red Hat Enterprise Linux 8;MAD
+APP-02;poweredOn;2;8192;;Ubuntu 22.04;MAD
+APP-03;poweredOff;4;16384;204800;Windows Server 2019;MAD

@@ -3,11 +3,15 @@
 Subes un inventario en CSV y sale el coste mensual de GCP, recurso por recurso.
 
 ```bash
+# Si el CSV ya viene en el esquema canonico
 bash calcular.sh mi-inventario.csv nombre-del-caso us-central1
+
+# Si es el CSV tal como lo entrego el cliente
+bash calcular.sh suyo.csv nombre-del-caso us-central1 perfiles/cliente.yml
 ```
 
-Eso deja `mi-inventario-costes.csv` al lado del fichero de entrada, y por pantalla
-el total desglosado.
+Eso deja `<entrada>-costes.csv` al lado del fichero de entrada, y por pantalla el
+total desglosado.
 
 ---
 
@@ -30,6 +34,109 @@ precio es correcto, pero **la cantidad es un supuesto tuyo**, y en servicios de
 consumo (TiB escaneados, DCU-hora) ese supuesto pesa más que el precio. La columna
 `motor` del CSV de salida dice de cuál viene cada línea, para que no se mezclen al
 leerlos.
+
+---
+
+## Cada cliente entrega otro formato
+
+Es la norma, no la excepcion: otras columnas, otras unidades, otro vocabulario.
+En vez de adivinar, cada cliente tiene un **perfil declarativo** en `perfiles/`
+que dice como leer lo suyo. El perfil se guarda junto a la propuesta y es lo que
+permite rehacer el mismo calculo un ano despues.
+
+### 1. Mirar que trae
+
+```bash
+python3 inventario.py inspeccionar --csv suyo.csv --borrador perfiles/cliente.yml
+```
+
+Detecta el delimitador, y por cada columna enseña cuantos valores distintos trae,
+cuantos vienen vacios, una muestra, y para que **podria** servir:
+
+```
+COLUMNA                          DISTINTOS  VACIOS  MUESTRA / PISTA
+VM Name                                  7       0  SRV-ERP-01 | SRV-ERP-02   <- podria ser nombre
+CPUs                                     5       0  8 | 4 | 16                <- podria ser vcpu
+Memory MB                                5       0  32768 | 16384             <- podria ser ram
+```
+
+Con `--borrador` escribe un perfil de partida. **Es una conjetura a partir del
+nombre de la cabecera**, no una lectura del contenido: hay que repasarlo.
+
+### 2. Corregir lo que el borrador no puede saber
+
+Tres cosas no estan en el nombre de la columna, y las tres cambian el resultado:
+
+| Qué | Por qué importa |
+|---|---|
+| **Las unidades reales** | RVTools rotula `Memory MB` pero entrega **MiB**. Leerlo como MB decimal infla la RAM un 4,8% y salta al siguiente tipo de maquina, mas caro |
+| **Qué filas no se calculan** | Una VM apagada no se migra. Si el cliente quiere contarla igual, se quita el filtro y se declara como supuesto |
+| **Qué vale cada valor del cliente** | `Red Hat Enterprise Linux 8` → `rhel`; `Ubuntu 22.04` → sin licencia |
+
+### 3. Calcular
+
+```bash
+bash calcular.sh suyo.csv cliente-x us-central1 perfiles/cliente.yml
+```
+
+### Anatomía de un perfil
+
+Ejemplo completo y comentado en `perfiles/ejemplo-vmware.yml`.
+
+```yaml
+csv:
+  delimitador: ';'
+  decimal: '.'          # ',' si usa coma decimal
+  saltar_lineas: 0      # cabeceras de adorno antes de la tabla
+
+filtrar:                # las filas que no pasan no se calculan
+  - columna: Powerstate
+    excluir: ['poweredoff', 'suspended']
+
+salidas:                # UNA fila del cliente puede dar VARIAS canonicas
+  - tipo: {constante: vm}
+    nombre: {desde: 'VM Name'}
+    spec:
+      sizing:           # no hay tipo de maquina: se deduce de vCPU + RAM
+        vcpu: 'CPUs'
+        ram_gb: 'Memory MB'
+        ram_unidad: MiB
+    so:
+      desde: 'OS'
+      mapa:
+        '*red hat*': rhel
+        '*windows*': windows
+        '*': ''         # cajon de sastre: sin licencia
+
+  - tipo: {constante: disco}
+    nombre: {desde: 'VM Name', sufijo: '-disco'}
+    cantidad: {desde: 'Provisioned MiB', unidad: {de: MiB, a: GiB}}
+    padre: {desde: 'VM Name'}
+    omitir_si_vacio: cantidad   # sin disco, no se genera la fila
+```
+
+Cada campo sale de una de tres formas: `constante`, `desde` (una columna) o
+`sizing`. Sobre eso se aplican, en orden, `mapa` (traduccion por patrones),
+`unidad` (conversion) y `prefijo`/`sufijo`.
+
+### El dimensionado desde vCPU y RAM
+
+Muchos inventarios on-prem no traen tipo de maquina. `sizing` elige **el mas
+barato de GCP que cabe**, con dos reglas que evitan errores caros:
+
+1. **Nunca se queda corto.** Se exige `vCPU >= origen` y `RAM >= origen`.
+2. **Solo familias de proposito general y computo** (e2, n1, n2, n2d, n4, c2, c3,
+   c4, t2a, t2d). Una maquina con GPU de 12 vCPU cabe en una carga de 12 vCPU,
+   pero cuesta un orden de magnitud mas. Para usar GPU, memoria o HPC hay que
+   pedir la familia explicitamente con `familia:`.
+
+El desempate es **por precio real de `pricing.yml` en la region**, no por orden
+alfabetico: `c2-standard-8` y `n2-standard-8` tienen los mismos 8 vCPU y 32 GiB
+y se llevan 17 USD/mes; `e2-standard-8` es 48 USD/mes mas barata que la c2. Un
+tipo sin precio en esa region se descarta: no existe alli.
+
+El tipo elegido sale en el CSV normalizado, para poder discutirlo con el cliente
+antes de calcular nada.
 
 ---
 
@@ -170,8 +277,9 @@ propuesta.
 bash test.sh
 ```
 
-29 comprobaciones, sin tocar la red (usa las tarifas fijas de `t/`). La mitad
-verifica importes; la otra mitad verifica que los guardarraíles **abortan**:
+41 comprobaciones, sin tocar la red (usa las tarifas fijas de `t/`). Verifican
+importes, la traducción de perfiles y, sobre todo, que los guardarraíles
+**abortan**:
 
 - un `so` que gcosts no cobra
 - un tipo de recurso desconocido
@@ -182,6 +290,10 @@ verifica importes; la otra mitad verifica que los guardarraíles **abortan**:
 - un `costs.csv` que no es de gcosts
 - una región sin tarifas cargadas
 - un inventario con recursos de gcosts pero sin su `costs.csv`
+- un perfil que apunta a una columna que no existe
+- un valor del cliente que no casa con ningún patrón del mapa
+- un perfil con un campo que no es canónico
+- un `sizing` para el que ninguna máquina llega
 
 Ese segundo bloque es el que importa. El fallo peligroso de una calculadora no es
 el que se cae: es el que devuelve un número creíble y equivocado.

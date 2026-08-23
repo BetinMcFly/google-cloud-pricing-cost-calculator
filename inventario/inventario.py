@@ -29,6 +29,8 @@ from datetime import datetime, timezone
 
 import yaml
 
+import perfiles
+
 AQUI = os.path.dirname(os.path.abspath(__file__))
 HORAS_MES = 730  # el mismo valor que usa gcosts para pasar de hora a mes
 
@@ -554,6 +556,117 @@ def cmd_calcular(args):
     return 0
 
 
+def cmd_inspeccionar(args):
+    info = perfiles.inspeccionar(args.csv, args.delimitador)
+    print(f"{args.csv}: {info['filas']} filas, delimitador {info['delimitador']!r}\n")
+    print(f"{'COLUMNA':32} {'DISTINTOS':>9} {'VACIOS':>7}  MUESTRA / PISTA")
+    print("-" * 100)
+    for c in info["columnas"]:
+        muestra = " | ".join(x[:22] for x in c["muestra"]) or "(vacia)"
+        pista = f"  <- podria ser {'/'.join(c['pistas'])}" if c["pistas"] else ""
+        print(f"{c['cabecera'][:32]:32} {c['distintos']:>9} {c['vacios']:>7}  "
+              f"{muestra[:40]}{pista}")
+
+    if args.borrador:
+        with open(args.borrador, "w", encoding="utf-8") as fh:
+            fh.write(_borrador(args.csv, info))
+        print(f"\nBorrador de perfil en {args.borrador}")
+        print("NO lo uses sin revisarlo: las columnas son una conjetura a partir "
+              "del nombre de la cabecera.")
+    return 0
+
+
+def _borrador(ruta_csv, info):
+    """Perfil de partida. Acierta con suerte; siempre hay que repasarlo."""
+    def busca(rol):
+        for c in info["columnas"]:
+            if rol in c["pistas"]:
+                return c["cabecera"]
+        return None
+
+    nombre, vcpu = busca("nombre"), busca("vcpu")
+    ram, disco, so = busca("ram"), busca("disco"), busca("so")
+    lineas = [
+        f"# Perfil generado a partir de {os.path.basename(ruta_csv)}.",
+        "# REVISAR: las columnas son una conjetura por el nombre de la cabecera.",
+        "#",
+        f"nombre: {os.path.splitext(os.path.basename(ruta_csv))[0]}",
+        "descripcion: |",
+        "  De donde salio este inventario, quien lo entrego y cuando.",
+        "",
+        "csv:",
+        f"  delimitador: {info['delimitador']!r}",
+        "  decimal: '.'          # ',' si el cliente usa coma decimal",
+        "",
+        "# filtrar:",
+        "#   - columna: Estado",
+        "#     excluir: [retirado, decommissioned]",
+        "",
+        "salidas:",
+        "  - tipo: {constante: vm}",
+        f"    nombre: {{desde: {nombre!r}}}" if nombre
+        else "    nombre: {desde: 'REVISAR-columna-del-nombre'}",
+        "    region: {constante: us-central1}",
+    ]
+    if vcpu and ram:
+        lineas += [
+            "    # Dimensiona al tipo mas pequeno que cabe. Nunca se queda corto.",
+            "    spec:",
+            "      sizing:",
+            f"        vcpu: {vcpu!r}",
+            f"        ram_gb: {ram!r}",
+            "        # ram_unidad: MB     # si la RAM viene en MB",
+            "        # familia: n2|n2d    # para restringir la familia",
+        ]
+    else:
+        lineas += ["    spec: {desde: 'REVISAR-tipo-de-maquina'}"]
+    if so:
+        lineas += [
+            "    # 'so' es la LICENCIA que se cobra, no el sistema operativo.",
+            "    # Solo rhel, rhel-sap, sles, sles-sap, windows. El resto: vacio.",
+            "    so:",
+            f"      desde: {so!r}",
+            "      mapa:",
+            "        '*red hat*': rhel",
+            "        '*rhel*': rhel",
+            "        '*suse*': sles",
+            "        '*windows*': windows",
+            "        '*': ''",
+        ]
+    if disco:
+        lineas += [
+            "",
+            "  - tipo: {constante: disco}",
+            f"    nombre: {{desde: {nombre!r}, sufijo: '-disco'}}" if nombre
+            else "    nombre: {desde: 'REVISAR', sufijo: '-disco'}",
+            "    spec: {constante: balanced}",
+            f"    cantidad: {{desde: {disco!r}, unidad: GB}}",
+            f"    padre: {{desde: {nombre!r}}}" if nombre
+            else "    padre: {desde: 'REVISAR'}",
+            "    omitir_si_vacio: cantidad",
+        ]
+    return "\n".join(lineas) + "\n"
+
+
+def cmd_normalizar(args):
+    perfil = perfiles.cargar_perfil(args.perfil)
+    filas, avisos = perfiles.normalizar(args.csv, perfil, args.region)
+    for a in avisos:
+        print(f"aviso: {a}", file=sys.stderr)
+    with open(args.salida, "w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=COLUMNAS)
+        w.writeheader()
+        for f in filas:
+            w.writerow(f)
+    reparto = {}
+    for f in filas:
+        reparto[f["tipo"]] = reparto.get(f["tipo"], 0) + 1
+    print(f"{args.salida}: {len(filas)} fila(s) canonicas")
+    for tipo, n in sorted(reparto.items()):
+        print(f"  {tipo:34} {n:>5}")
+    return 0
+
+
 def main():
     p = argparse.ArgumentParser(
         description="De un CSV de inventario a un CSV de costes mensuales de GCP.")
@@ -583,10 +696,26 @@ def main():
     k.add_argument("--salida", default="costes.csv")
     k.set_defaults(func=cmd_calcular)
 
+    i = sub.add_parser("inspeccionar",
+                       help="mira el CSV de un cliente y propone un perfil")
+    i.add_argument("--csv", required=True)
+    i.add_argument("--delimitador", default=None, help="por defecto se detecta")
+    i.add_argument("--borrador", default=None, help="escribe un perfil de partida")
+    i.set_defaults(func=cmd_inspeccionar)
+
+    n = sub.add_parser("normalizar",
+                       help="CSV del cliente + perfil -> inventario canonico")
+    n.add_argument("--csv", required=True)
+    n.add_argument("--perfil", required=True)
+    n.add_argument("--region", default="us-central1",
+                   help="region para elegir el tipo de maquina mas barato que cabe")
+    n.add_argument("--salida", default="inventario.csv")
+    n.set_defaults(func=cmd_normalizar)
+
     args = p.parse_args()
     try:
         return args.func(args)
-    except ErrorInventario as e:
+    except (ErrorInventario, perfiles.ErrorPerfil) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
 
