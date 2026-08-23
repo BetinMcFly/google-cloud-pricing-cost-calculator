@@ -146,9 +146,10 @@ del directorio y falla si encuentra la lista de precios. Por eso `pricing.yml` v
 Sin Go, Docker ni make en esta máquina — el build ocurre en Cloud Build y la validación usa `bash`,
 que sí está disponible.
 
-1. **El pipeline de precios sigue sano en tu fork**: lanzar `build-pricing.yml` a mano y comprobar
-   que los 543 asertos y el diffcheck pasan, y que commitea un `pricing.yml` nuevo.
-2. **La contenerización no altera ningún número** — prueba de aceptación principal:
+1. ✅ **El pipeline de precios sigue sano en tu fork** — lanzado a mano el 22/08/2026: los 543
+   asertos y el diffcheck pasaron, y commiteó `Pricing updated` (`f510ec1`) en `master`.
+2. ✅ **La contenerización no altera ningún número** — prueba de aceptación principal, superada
+   con el CSV que produjo el propio job: `🧪 TESTS : 543` / `✅ DONE : All successful`.
    ```bash
    gcloud storage cp t/*.yml gs://gcosts-casos-<sufijo>/t/
    gcloud run jobs execute gcosts --region=us-central1 \
@@ -156,8 +157,28 @@ que sí está disponible.
    gcloud storage cp gs://gcosts-casos-<sufijo>/t/costs.csv t/costs.csv
    cd t && bash test.sh     # debe dar ✅ DONE : All successful
    ```
-3. Comprobar la memoria real de la primera ejecución en las métricas de Cloud Run antes de fijar
-   el límite (512 MiB es una estimación sobre 4,1 MB de YAML, no una medición).
+3. ⛔ **La memoria real no es medible con este job, y los 512 MiB se quedan como están.**
+
+   Se consultó Cloud Monitoring para la ejecución del 22/08/2026 (22:35:22 → 22:37:55, 2m33s):
+
+   | Métrica | Muestras |
+   |---|---|
+   | `run.googleapis.com/job/completed_task_attempt_count` | 1 — la ejecución sí quedó registrada |
+   | `run.googleapis.com/container/memory/utilizations` | **0** |
+   | `run.googleapis.com/container/cpu/utilizations` | **0** |
+
+   Las distribuciones de utilización se muestrean periódicamente y el job termina antes de que se
+   tome ninguna muestra. No es un fallo de configuración ni algo que arregle repetir la ejecución:
+   mientras el cálculo dure un par de minutos, esas series seguirán vacías.
+
+   **Decisión: no perseguir el número.** Bajar el límite a 256 MiB ahorraría una fracción de
+   céntimo por ejecución en un job que se lanza puntualmente, a cambio de arriesgar un OOM en
+   mitad de una propuesta. Los 512 MiB siguen siendo una estimación sobre 4,1 MB de YAML, y se
+   asumen como tal.
+
+   Si algún día el job pasa a ejecutarse con frecuencia y el límite empieza a importar, la única
+   vía practicable es empírica: bajar `--memory` a propósito hasta que la ejecución falle, y subir
+   un escalón desde ahí.
 
 ## Lo que esto no resuelve (y conviene decir en las propuestas)
 

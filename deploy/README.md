@@ -44,6 +44,11 @@ gcloud run jobs deploy gcosts \
   --add-volume-mount=volume=casos,mount-path=/mnt/casos
 ```
 
+> **Los 512 MiB son una estimacion, no una medicion.** El job termina en ~2m30s, antes de que
+> Cloud Run tome ninguna muestra de `container/memory/utilizations`, asi que esa serie sale vacia
+> y el consumo real no es observable. Se deja holgado a proposito: ver el punto 3 de
+> *Verificacion* en `deploy/PLAN.md`.
+
 Para actualizar solo la imagen mas adelante:
 
 ```bash
