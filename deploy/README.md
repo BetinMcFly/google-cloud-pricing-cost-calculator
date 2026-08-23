@@ -159,7 +159,7 @@ memoria y se pierde en cada arranque en frio.
 | Prefijo | Contenido |
 |---|---|
 | `casos/<cliente>/` | Ficheros de uso `*.yml` y su `costs.csv`. Es lo que se le pasa al job en `--dir` |
-| `respaldos/` | Copias de trabajo que no viven en git. **Nunca apuntar `--dir` aqui** |
+| `respaldos/` | Segunda copia del arbol de trabajo de `propuestas-gcp`. **Nunca apuntar `--dir` aqui** |
 
 El job solo lee el directorio que se le indica en `--dir`, asi que `respaldos/` no interfiere con
 ningun calculo. La regla de "solo ficheros de uso en el directorio" (seccion 3) sigue aplicando
@@ -167,19 +167,31 @@ dentro de `casos/`.
 
 ### Restaurar `propuestas-gcp` en una maquina nueva
 
-Los patrones, plantillas, rate card y referencia de propuestas no estan en ningun repo git; su
-unica copia fuera de la VM esta en el bucket. Para recuperarlos:
+La copia canonica ya no es el bucket: los patrones, plantillas, rate card, referencia y las
+propuestas de cliente viven en el repo privado `BetinMcFly/propuestas-gcp`. Restaurar es clonarlo:
 
 ```bash
-gcloud storage rsync -r \
+git clone git@github.com:BetinMcFly/propuestas-gcp.git ~/propuestas-gcp/data
+```
+
+El prefijo `respaldos/propuestas-gcp/` del bucket queda como **segunda copia del arbol de
+trabajo**, para el caso de perder el acceso a GitHub y para conservar lo que aun no se ha
+commiteado. Se sincroniza **excluyendo `.git/`**: un `.git` copiado a medias es peor que ninguno,
+porque aparenta ser un repo valido sin serlo. Si se restaura desde el bucket, se obtiene el arbol
+de ficheros sin historia; para tener historia, clonar.
+
+```bash
+# Respaldar (VM -> bucket)
+gcloud storage rsync -r -x '.*\.git/.*' \
+  ~/propuestas-gcp gs://gcosts-casos-claude-projects-496723/respaldos/propuestas-gcp
+
+# Recuperar (bucket -> VM), mismo comando con origen y destino invertidos
+gcloud storage rsync -r -x '.*\.git/.*' \
   gs://gcosts-casos-claude-projects-496723/respaldos/propuestas-gcp ~/propuestas-gcp
 ```
 
-Y para volver a respaldarlos tras cambiarlos (mismo comando con origen y destino invertidos):
-
-```bash
-gcloud storage rsync -r \
-  ~/propuestas-gcp gs://gcosts-casos-claude-projects-496723/respaldos/propuestas-gcp
-```
-
 Verificar con `--dry-run`: si no lista ninguna copia pendiente, ambos lados son identicos.
+
+> El `-x` de `gcloud storage rsync` es un regex **anclado al principio** de la ruta, no una
+> busqueda parcial. Por eso `.*\.git/.*` y no `\.git/`, que no excluye nada y deja el respaldo
+> lleno de objetos sueltos de git.
