@@ -92,7 +92,7 @@ restricción de IP porque la usa GitHub Actions). Las consultas al catálogo no 
 | Fichero | Contenido |
 |---|---|
 | `Dockerfile` | Multi-stage: `golang:1.24` compila con `CGO_ENABLED=0`; runtime `gcr.io/distroless/static-debian12:nonroot` con solo el binario y `pricing.yml`. Sin Perl/SQLite/gcloud. `ENTRYPOINT ["/gcosts"]`, sin `CMD`. ≈17 MB |
-| `.dockerignore` | Excluye `.git/`, `build/`, `tools/`, `img/`. **No** excluye `t/`: los fixtures son la prueba de aceptación |
+| `.dockerignore` | Deja fuera de la imagen todo lo que no sea `gcosts/` y `pricing.yml`, **`t/` incluido**: la prueba de aceptación no corre dentro del contenedor, sino que `deploy/cloudbuild.yaml` le monta `/workspace/t` del checkout de Cloud Build |
 | `deploy/cloudbuild.yaml` | Build + push a Artifact Registry (`.yaml`; con `.yml` lo descartaría el `.gitignore`) |
 | `deploy/README.md` | Runbook: build, deploy, ejecución, y cómo forzar una regeneración de precios |
 | `deploy/PLAN.md` | Este plan (creado en el Paso 0) |

@@ -1,0 +1,33 @@
+# Tarifas FIJAS para las pruebas. No se regeneran: si cambian, los importes
+# esperados de test.sh dejarian de comprobar nada.
+about:
+  generado: 2026-01-01 00:00:00 UTC
+  fuente: fixture de pruebas
+  regiones:
+  - us-central1
+tarifas:
+  us-central1:
+    bigquery-almacenamiento-activo:
+      sku_id: TEST-0001
+      descripcion: Active Logical Storage (us-central1)
+      precio: 0.023
+      moneda: USD
+      unidad: gibibyte month
+      periodo: mes
+      servicio: BigQuery
+    bigquery-consulta:
+      sku_id: TEST-0002
+      descripcion: Analysis (us-central1)
+      precio: 6.25
+      moneda: USD
+      unidad: tebibyte
+      periodo: consumo
+      servicio: BigQuery
+    bigtable-nodo:
+      sku_id: TEST-0003
+      descripcion: Server Node
+      precio: 0.65
+      moneda: USD
+      unidad: hour
+      periodo: hora-permanente
+      servicio: Cloud Bigtable

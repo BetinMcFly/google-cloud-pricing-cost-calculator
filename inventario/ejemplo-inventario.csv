@@ -1,0 +1,32 @@
+# Inventario de ejemplo. Una fila por recurso.
+#
+# tipo       obligatorio. Decide que motor lo precia y como se leen las demas columnas.
+# nombre     obligatorio. Identificador libre; sale tal cual en el CSV de costes.
+# region     si se deja vacia se usa la --region por defecto.
+# spec       vm: tipo de maquina | disco: ssd/hdd/balanced | bucket: standard/nearline/...
+# cantidad   GiB, TiB, nodos... segun el tipo. Ver unidad.
+# unidad     solo documental, para quien lea el CSV.
+# so         solo vm y solo si la licencia se cobra: rhel, rhel-sap, sles, sles-sap,
+#            windows. Debian/Ubuntu y demas SO sin licencia: dejar VACIO.
+# compromiso solo vm: 0, 1 o 3 (anios de CUD).
+# padre      solo disco: nombre de la vm a la que cuelga. Vacio = disco suelto.
+#
+tipo,nombre,region,spec,cantidad,unidad,so,compromiso,padre,notas
+vm,app-01,us-central1,n2-standard-8,,,,0,,Servidor de aplicacion (Debian: sin licencia, columna so vacia)
+vm,app-02,us-central1,n2-standard-8,,,rhel,3,,Segundo nodo con RHEL y CUD a 3 anios
+disco,app-01-boot,,balanced,100,GiB,,,app-01,Disco de arranque
+disco,app-01-datos,,ssd,500,GiB,,,app-01,
+disco,app-02-boot,,balanced,100,GiB,,,app-02,
+bucket,landing,us-central1,standard,2000,GiB,,,,Zona de aterrizaje
+bucket,historico,us-central1,nearline,8000,GiB,,,,Datos frios
+nat,nat-salida,us-central1,,300,GiB,,,,
+vpn,vpn-datacenter,us-central1,,,,,,,Tunel al CPD
+egress,salida-internet,,,500,GiB,,,,Trafico saliente a internet
+monitoring,metricas,us-central1,,6000,MiB,,,,
+bigquery-almacenamiento-activo,dwh-activo,us-central1,,20000,GiB,,,,20 TB de tablas activas
+bigquery-almacenamiento-largo,dwh-historico,us-central1,,50000,GiB,,,,50 TB sin modificar 90+ dias
+bigquery-consulta,consultas-mes,us-central1,,30,TiB,,,,TiB escaneados al mes
+pubsub-entrega,eventos,us-central1,,2,TiB,,,,
+bigtable-nodo,bt-produccion,us-central1,,3,nodos,,,,3 nodos encendidos todo el mes
+logging-ingesta,logs-plataforma,us-central1,,500,GiB,,,,
+logging-retencion,logs-auditoria,us-central1,,1200,GiB,,,,Retencion mas alla del periodo gratuito

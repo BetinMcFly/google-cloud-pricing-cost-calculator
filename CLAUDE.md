@@ -17,6 +17,20 @@ asserts and `t/diffcheck.sh` pass.
 - [`deploy/PLAN.md`](deploy/PLAN.md) — architecture and rationale
 - [`deploy/SETUP.md`](deploy/SETUP.md) — one-time setup, step by step
 
+## `inventario/` — fork-local, not upstream
+
+Turns a CSV inventory into a cost CSV. It exists because `gcosts` only prices
+Compute Engine, Cloud Storage, Cloud Monitoring and network: the root `pricing.yml`
+has no BigQuery, Dataplex, Dataflow or Logging keys at all. So `inventario/` runs
+two engines and merges them — `gcosts` for what it covers, and unit prices read
+from the Cloud Billing Catalog API (`inventario/servicios.csv` maps a resource type
+to exactly one SKU) for everything else.
+
+Python, not Go: it orchestrates `gcloud` and the Billing API rather than extending
+the calculator. `bash inventario/test.sh` — 29 checks, no network.
+
+- [`inventario/README.md`](inventario/README.md) — CSV schema, how to add a service
+
 ## Repository layout: two independent Go modules
 
 There is no `go.mod` at the repo root. Always `cd` into the right module first.

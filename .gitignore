@@ -43,3 +43,10 @@ gcosts/gcosts*
 !/.gitpod.yml
 # GolangCI-Lint
 !/.golangci.yml
+# Herramienta inventario/ (fork): su fuente es casi toda CSV y YAML, y las reglas
+# **.yml / **.csv de arriba se la tragarian entera sin decir nada.
+!inventario/servicios.csv
+!inventario/ejemplo-inventario.csv
+!inventario/tarifas.yml
+!inventario/t/*.csv
+!inventario/t/*.yml

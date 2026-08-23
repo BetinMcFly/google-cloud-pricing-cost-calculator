@@ -1,0 +1,89 @@
+about:
+  generado: 2026-08-23 01:05:01 UTC
+  fuente: Cloud Billing Catalog API (cloudbilling.googleapis.com/v1)
+  regiones:
+  - us-central1
+  aviso: Precios de lista publicos. No incluye acuerdos empresariales ni descuentos
+    negociados.
+tarifas:
+  us-central1:
+    bigquery-almacenamiento-activo:
+      sku_id: 0018-A5A0-9D6D
+      descripcion: Active Logical Storage (us-central1)
+      precio: 0.023
+      moneda: USD
+      unidad: gibibyte month
+      periodo: mes
+      servicio: BigQuery
+    bigquery-almacenamiento-largo:
+      sku_id: 55B3-2F73-B6A3
+      descripcion: Long Term Logical Storage (us-central1)
+      precio: 0.016
+      moneda: USD
+      unidad: gibibyte month
+      periodo: mes
+      servicio: BigQuery
+    bigquery-almacenamiento-fisico:
+      sku_id: D4B6-F772-0255
+      descripcion: Active Physical Storage (us-central1)
+      precio: 0.04
+      moneda: USD
+      unidad: gibibyte month
+      periodo: mes
+      servicio: BigQuery
+    bigquery-consulta:
+      sku_id: 3362-E469-6BEF
+      descripcion: Analysis (us-central1)
+      precio: 6.25
+      moneda: USD
+      unidad: tebibyte
+      periodo: consumo
+      servicio: BigQuery
+    logging-ingesta:
+      sku_id: 143F-A1B0-E0BE
+      descripcion: Log Storage cost
+      precio: 0.5
+      moneda: USD
+      unidad: gibibyte
+      periodo: consumo
+      servicio: Cloud Logging
+    logging-retencion:
+      sku_id: F4AE-5A52-ACE3
+      descripcion: Log Retention cost
+      precio: 0.01
+      moneda: USD
+      unidad: gibibyte month
+      periodo: mes
+      servicio: Cloud Logging
+    pubsub-entrega:
+      sku_id: 027D-B6C7-CCA2
+      descripcion: Message Delivery Basic
+      precio: 40.0
+      moneda: USD
+      unidad: tebibyte
+      periodo: consumo
+      servicio: Cloud Pub/Sub
+    bigtable-nodo:
+      sku_id: 04F7-CAFF-B2CA
+      descripcion: Server Node
+      precio: 0.65
+      moneda: USD
+      unidad: hour
+      periodo: hora-permanente
+      servicio: Cloud Bigtable
+    dataplex-procesamiento:
+      sku_id: 09AA-2F4C-2479
+      descripcion: Dataplex Processing (milli DCU-hr) Iowa
+      precio: 6.0e-05
+      moneda: USD
+      unidad: hour
+      periodo: consumo
+      servicio: Dataplex
+    dataplex-metadatos:
+      sku_id: 5D0E-3A17-3010
+      descripcion: Dataplex Metadata Storage Iowa
+      precio: 2.0
+      moneda: USD
+      unidad: gibibyte month
+      periodo: mes
+      servicio: Dataplex

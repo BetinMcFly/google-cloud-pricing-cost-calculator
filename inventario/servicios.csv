@@ -1,0 +1,32 @@
+# Mapeo tipo de recurso -> SKU de la Cloud Billing Catalog API.
+#
+# Cubre lo que gcosts NO sabe preciar. Los tipos de gcosts (vm, disco, bucket,
+# egress, vpn, nat, monitoring) no aparecen aqui: los calcula gcosts.
+#
+# sku_patron  : regex (case-insensitive) contra la descripcion del SKU. Se aplica
+#               DESPUES de filtrar por region con serviceRegions. Debe resolver a
+#               EXACTAMENTE un SKU: 0 o >1 es error duro, nunca se elige uno.
+#               {region} se sustituye por la region pedida.
+# periodo     : mes             -> la cantidad es un stock mensual (GiB almacenados).
+#                                  El precio ya es mensual, se usa tal cual.
+#               hora-permanente -> la cantidad es algo encendido todo el mes
+#                                  (nodos). Se multiplica por 730 horas.
+#               consumo         -> la cantidad ya es el consumo del mes en la
+#                                  unidad del SKU (TiB escaneados, GiB ingeridos,
+#                                  milli DCU-hora gastados). No se multiplica.
+#
+# La diferencia entre 'hora-permanente' y 'consumo' es un factor 730: un nodo de
+# Bigtable esta encendido siempre, un escaneo de Dataplex va a rafagas. Elegir mal
+# no da un aviso, da una factura equivocada.
+#
+tipo,servicio_id,servicio,sku_patron,unidad_esperada,periodo,notas
+bigquery-almacenamiento-activo,24E6-581D-38E5,BigQuery,^Active Logical Storage \({region}\)$,gibibyte month,mes,Almacenamiento logico activo (modificado en los ultimos 90 dias)
+bigquery-almacenamiento-largo,24E6-581D-38E5,BigQuery,^Long Term Logical Storage \({region}\)$,gibibyte month,mes,Almacenamiento logico de larga duracion (sin modificar 90+ dias)
+bigquery-almacenamiento-fisico,24E6-581D-38E5,BigQuery,^Active Physical Storage \({region}\)$,gibibyte month,mes,Facturacion por almacenamiento fisico comprimido
+bigquery-consulta,24E6-581D-38E5,BigQuery,^Analysis \({region}\)$,tebibyte,consumo,On-demand: TiB escaneados al mes. NO aplica si hay reservas de slots
+logging-ingesta,5490-F7B7-8DF6,Cloud Logging,^Log Storage cost$,gibibyte,consumo,Ingesta de logs por GiB
+logging-retencion,5490-F7B7-8DF6,Cloud Logging,^Log Retention cost$,gibibyte month,mes,Retencion mas alla del periodo gratuito
+pubsub-entrega,A1E8-BE35-7EBC,Cloud Pub/Sub,^Message Delivery Basic$,tebibyte,consumo,TiB de mensajes entregados al mes
+bigtable-nodo,C3BE-24A5-0975,Cloud Bigtable,^Server Node$,hour,hora-permanente,Precio por nodo-hora
+dataplex-procesamiento,51C6-B3F5-9B38,Dataplex,^Dataplex Processing \(milli DCU-hr\) ,hour,consumo,Cantidad en milli DCU-hora gastados en el mes (1 DCU-hora = 1000). Va a rafagas: NO es hora-permanente
+dataplex-metadatos,51C6-B3F5-9B38,Dataplex,^Dataplex Metadata Storage ,gibibyte month,mes,Almacenamiento del catalogo

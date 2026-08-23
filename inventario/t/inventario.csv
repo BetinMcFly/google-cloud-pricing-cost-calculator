@@ -1,0 +1,9 @@
+tipo,nombre,region,spec,cantidad,unidad,so,compromiso,padre,notas
+vm,vm-libre,us-central1,n2-standard-8,,,,0,,SO sin licencia
+vm,vm-rhel,us-central1,n2-standard-8,,,rhel,3,,Con licencia y CUD
+disco,vm-libre-boot,,balanced,100,GiB,,,vm-libre,
+disco,suelto,us-central1,ssd,50,GiB,,,,Disco sin VM
+bucket,b1,us-central1,standard,1000,GiB,,,,
+bigquery-almacenamiento-activo,bq,us-central1,,10000,GiB,,,,10000 x 0.023 = 230.00
+bigquery-consulta,q,us-central1,,4,TiB,,,,4 x 6.25 = 25.00
+bigtable-nodo,bt,us-central1,,2,nodos,,,,2 x 0.65 x 730 = 949.00
