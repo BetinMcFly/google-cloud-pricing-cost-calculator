@@ -222,6 +222,91 @@ aborta "familia inexistente en el sizing" "no hay tipo de maquina" -- \
 	$INV normalizar --csv "$TMP/mini.csv" --perfil "$TMP/gpu.yml" --salida "$TMP/z.csv"
 
 echo
+echo "### Centinelas de 'sin dato', nombres compuestos y arquitectura"
+
+# Muchos inventarios escriben '-' donde no hay dato. Sin declararlo, ese texto
+# llega al conversor numerico.
+printf 'App;Host;CPU;RAM;Disco\nuno;10.0.0.1;2;4;-\n' >"$TMP/centinela.csv"
+cat >"$TMP/sinvacios.yml" <<'YMLA'
+csv: {delimitador: ';'}
+salidas:
+  - tipo: {constante: vm}
+    nombre: {desde: 'App'}
+    spec: {sizing: {vcpu: 'CPU', ram_gb: 'Disco'}}
+YMLA
+aborta "un '-' no declarado como vacio aborta el sizing" "no son numeros" -- \
+	$INV normalizar --csv "$TMP/centinela.csv" --perfil "$TMP/sinvacios.yml" --salida "$TMP/z.csv"
+
+# Y si el '-' llega a una cantidad, lo caza el conversor mas adelante.
+printf 'tipo,nombre,region,spec,cantidad,unidad,so,compromiso,padre,notas\n' >"$TMP/guion.csv"
+printf 'bucket,b1,us-central1,standard,-,GiB,,,,\n' >>"$TMP/guion.csv"
+aborta "un '-' que llega como cantidad aborta al convertir" "no es un numero" -- \
+	$INV convertir --csv "$TMP/guion.csv" --dir "$TMP/guion" --region us-central1
+
+cat >"$TMP/convacios.yml" <<'YMLB'
+csv: {delimitador: ';', vacios: ['-']}
+salidas:
+  - tipo: {constante: vm}
+    nombre: {desde: ['App', 'Host'], separador: ' @ '}
+    spec: {sizing: {vcpu: 'CPU', ram_gb: 'RAM'}}
+  - tipo: {constante: disco}
+    nombre: {desde: ['App', 'Host'], separador: ' @ ', sufijo: '-disco'}
+    cantidad: {desde: 'Disco'}
+    padre: {desde: ['App', 'Host'], separador: ' @ '}
+    omitir_si_vacio: cantidad
+YMLB
+$INV normalizar --csv "$TMP/centinela.csv" --perfil "$TMP/convacios.yml" \
+	--region us-central1 --salida "$TMP/centinela-out.csv" >/dev/null 2>&1
+if [ -f "$TMP/centinela-out.csv" ]; then
+	casa "'-' declarado en 'vacios' se comporta como celda vacia" \
+		"$TMP/centinela-out.csv" "uno @ 10.0.0.1"
+	if grep -q -- "-disco" "$TMP/centinela-out.csv"; then
+		fallo "el disco con '-' tenia que omitirse"
+	else
+		ok "un disco con '-' se omite en vez de inventarle un tamano"
+	fi
+else
+	fallo "no se genero el canonico con centinelas"
+fi
+
+# Dos filas que se llaman igual y son maquinas distintas: el nombre tiene que
+# componerse de varias columnas o el disco no sabe de que vm cuelga.
+printf 'App;Host;CPU;RAM;Disco\ndup;10.0.0.1;2;4;50\ndup;10.0.0.2;2;4;50\n' >"$TMP/dup.csv"
+$INV normalizar --csv "$TMP/dup.csv" --perfil "$TMP/convacios.yml" \
+	--region us-central1 --salida "$TMP/dup-out.csv" >/dev/null 2>&1
+casa "'desde' con varias columnas desambigua filas homonimas" \
+	"$TMP/dup-out.csv" "dup @ 10.0.0.2"
+
+# Y si aun asi salen dos nombres iguales, tiene que abortar.
+printf 'tipo,nombre,region,spec,cantidad,unidad,so,compromiso,padre,notas\n' >"$TMP/repes.csv"
+printf 'vm,igual,us-central1,n1-standard-2,,,,0,,\n' >>"$TMP/repes.csv"
+printf 'vm,igual,us-central1,n1-standard-2,,,,0,,\n' >>"$TMP/repes.csv"
+aborta "dos recursos del mismo tipo con el mismo nombre abortan" "duplicado" -- \
+	$INV convertir --csv "$TMP/repes.csv" --dir "$TMP/repes" --region us-central1
+
+# Arm gana por precio, pero una carga x86 no se mueve ahi sin recompilar.
+printf 'App;Host;CPU;RAM;Disco\narm;10.0.0.9;1;4;-\n' >"$TMP/arm.csv"
+$INV normalizar --csv "$TMP/arm.csv" --perfil "$TMP/convacios.yml" \
+	--region us-central1 --salida "$TMP/arm-out.csv" >/dev/null 2>&1
+if grep -qE "t2a-|c4a-" "$TMP/arm-out.csv" 2>/dev/null; then
+	fallo "el sizing por defecto eligio Arm para una carga x86"
+else
+	ok "el sizing por defecto no elige Arm (t2a/c4a)"
+fi
+
+cat >"$TMP/armsi.yml" <<'YMLC'
+csv: {delimitador: ';', vacios: ['-']}
+salidas:
+  - tipo: {constante: vm}
+    nombre: {desde: 'App'}
+    spec: {sizing: {vcpu: 'CPU', ram_gb: 'RAM', familia: 't2a'}}
+YMLC
+$INV normalizar --csv "$TMP/arm.csv" --perfil "$TMP/armsi.yml" \
+	--region us-central1 --salida "$TMP/armsi-out.csv" >/dev/null 2>&1
+casa "Arm si se elige cuando se pide explicitamente con 'familia'" \
+	"$TMP/armsi-out.csv" "t2a-"
+
+echo
 printf '🧪 PRUEBAS : %s\n' "$((OK+FALLOS))"
 if [ "$FALLOS" -eq 0 ]; then
 	printf '\033[32m✅ DONE  : All successful\033[0m\n'

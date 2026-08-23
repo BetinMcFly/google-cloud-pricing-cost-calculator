@@ -43,11 +43,18 @@ class ErrorPerfil(Exception):
 # --------------------------------------------------------------------------
 
 # Familias que el sizing considera por defecto: proposito general y optimizadas
-# para computo. Las demas (GPU: a2/a3/a4/g2/g4 - memoria: m1..m4 - HPC: h3) caben
-# por vCPU y RAM pero cuestan un orden de magnitud mas, y elegirlas por accidente
-# es un error caro. Para usarlas hay que pedirlas por 'familia' en el perfil.
-FAMILIAS_GENERALES = ("e2", "n1", "n2", "n2d", "n4", "t2a", "t2d",
-                      "c2", "c2d", "c3", "c3d", "c4", "c4a", "c4d")
+# para computo, TODAS x86. Quedan fuera por dos razones distintas:
+#
+#   - GPU (a2/a3/a4/g2/g4), memoria (m1..m4) y HPC (h3) caben por vCPU y RAM
+#     pero cuestan un orden de magnitud mas.
+#   - t2a (Ampere Altra) y c4a (Axion) son ARM. Suelen ganar por precio, pero
+#     una carga x86 no se mueve ahi sin recompilar y sin comprobar que existan
+#     los paquetes: no es un lift-and-shift, y proponerlo como si lo fuera
+#     compromete un trabajo de migracion que no esta presupuestado.
+#
+# Para usar cualquiera de ellas hay que pedirla por 'familia' en el perfil.
+FAMILIAS_GENERALES = ("e2", "n1", "n2", "n2d", "n4", "t2d",
+                      "c2", "c2d", "c3", "c3d", "c4", "c4d")
 
 
 def cargar_maquinas(ruta=None):
@@ -228,12 +235,21 @@ def _resolver(spec, fila, ctx, campo):
     if "constante" in spec:
         valor = str(spec["constante"])
     elif "desde" in spec:
-        col = spec["desde"]
-        if col not in fila:
-            raise ErrorPerfil(
-                f"campo '{campo}': el CSV no tiene la columna '{col}'.\n"
-                f"  Columnas: {', '.join(fila.keys())}")
-        valor = (fila[col] or "").strip()
+        # Una lista concatena varias columnas. Necesario cuando ninguna es
+        # unica por si sola: cinco filas pueden llamarse igual y referirse a
+        # cinco maquinas distintas.
+        cols = spec["desde"]
+        cols = cols if isinstance(cols, list) else [cols]
+        partes = []
+        for col in cols:
+            if col not in fila:
+                raise ErrorPerfil(
+                    f"campo '{campo}': el CSV no tiene la columna '{col}'.\n"
+                    f"  Columnas: {', '.join(fila.keys())}")
+            partes.append((fila[col] or "").strip())
+        # Las partes vacias no dejan separadores sueltos: una fila a la que le
+        # falta la segunda columna conserva la primera como nombre.
+        valor = str(spec.get("separador", " ")).join(p for p in partes if p).strip()
     else:
         raise ErrorPerfil(
             f"campo '{campo}': hay que decir de donde sale "
@@ -268,10 +284,21 @@ def leer_csv_cliente(ruta, perfil):
     delim = conf.get("delimitador", ",")
     cod = conf.get("codificacion", "utf-8-sig")
     saltar = int(conf.get("saltar_lineas", 0))
+    # Muchos inventarios marcan "no hay dato" con un centinela ('-', 'N/A') en
+    # vez de dejar la celda vacia. Sin declararlo, ese texto llega al conversor
+    # numerico y aborta; declarado, la celda se comporta como vacia y funcionan
+    # los filtros y los 'omitir_si_vacio'.
+    vacios = {str(v).strip().lower() for v in (conf.get("vacios") or [])}
     with io.open(ruta, encoding=cod, newline="", errors="replace") as fh:
         for _ in range(saltar):
             fh.readline()
-        return list(csv.DictReader(fh, delimiter=delim))
+        filas = list(csv.DictReader(fh, delimiter=delim))
+    if vacios:
+        for fila in filas:
+            for col, valor in fila.items():
+                if isinstance(valor, str) and valor.strip().lower() in vacios:
+                    fila[col] = ""
+    return filas
 
 
 def normalizar(ruta_csv, perfil, region=None):

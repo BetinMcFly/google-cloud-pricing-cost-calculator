@@ -115,9 +115,40 @@ salidas:                # UNA fila del cliente puede dar VARIAS canonicas
     omitir_si_vacio: cantidad   # sin disco, no se genera la fila
 ```
 
-Cada campo sale de una de tres formas: `constante`, `desde` (una columna) o
-`sizing`. Sobre eso se aplican, en orden, `mapa` (traduccion por patrones),
-`unidad` (conversion) y `prefijo`/`sufijo`.
+Cada campo sale de una de tres formas: `constante`, `desde` (una columna o
+**una lista de columnas**) o `sizing`. Sobre eso se aplican, en orden, `mapa`
+(traduccion por patrones), `unidad` (conversion) y `prefijo`/`sufijo`.
+
+### Nombres que ninguna columna da por si sola
+
+`desde` acepta una lista, y entonces concatena. Es lo normal cuando el cliente
+organiza el inventario por aplicacion y no por maquina: cinco filas se llaman
+`APIS-SIEL` y son cinco servidores distintos.
+
+```yaml
+nombre: {desde: ['Aplicación / Servidor', '# VMs'], separador: ' @ '}
+```
+
+Las partes vacias no dejan separadores sueltos: una fila sin la segunda columna
+conserva la primera como nombre.
+
+Importa porque **el nombre es la clave**: es lo que une un disco con su vm y lo
+que identifica la linea en la propuesta. Dos recursos del mismo tipo con el
+mismo nombre **abortan** el calculo, en vez de producir un CSV donde no se sabe
+que disco cuelga de que maquina.
+
+### Celdas que dicen "no hay dato" sin estar vacias
+
+Casi ningun inventario real deja la celda en blanco: escribe `-`, `N/A` o `n/d`.
+Sin declararlo, ese texto llega al conversor numerico y aborta el calculo.
+
+```yaml
+csv:
+  vacios: ['-', 'N/A']
+```
+
+Declarado, la celda se comporta como vacia: la cazan los filtros y funcionan los
+`omitir_si_vacio`.
 
 ### El dimensionado desde vCPU y RAM
 
@@ -125,10 +156,18 @@ Muchos inventarios on-prem no traen tipo de maquina. `sizing` elige **el mas
 barato de GCP que cabe**, con dos reglas que evitan errores caros:
 
 1. **Nunca se queda corto.** Se exige `vCPU >= origen` y `RAM >= origen`.
-2. **Solo familias de proposito general y computo** (e2, n1, n2, n2d, n4, c2, c3,
-   c4, t2a, t2d). Una maquina con GPU de 12 vCPU cabe en una carga de 12 vCPU,
-   pero cuesta un orden de magnitud mas. Para usar GPU, memoria o HPC hay que
-   pedir la familia explicitamente con `familia:`.
+2. **Solo familias de proposito general y computo, y solo x86** (e2, n1, n2,
+   n2d, n4, c2, c2d, c3, c3d, c4, c4d, t2d). Dos exclusiones, por motivos
+   distintos:
+   - Una maquina con GPU de 12 vCPU cabe en una carga de 12 vCPU, pero cuesta
+     un orden de magnitud mas.
+   - `t2a` (Ampere Altra) y `c4a` (Axion) son **Arm**. Suelen ganar por precio,
+     pero una carga x86 no se mueve ahi sin recompilar y sin comprobar que
+     existan los paquetes. Proponer Arm como si fuera un lift-and-shift
+     compromete un trabajo de migracion que nadie ha presupuestado.
+
+   Para usar cualquiera de ellas hay que pedir la familia explicitamente con
+   `familia:`.
 
 El desempate es **por precio real de `pricing.yml` en la region**, no por orden
 alfabetico: `c2-standard-8` y `n2-standard-8` tienen los mismos 8 vCPU y 32 GiB
@@ -277,7 +316,7 @@ propuesta.
 bash test.sh
 ```
 
-41 comprobaciones, sin tocar la red (usa las tarifas fijas de `t/`). Verifican
+49 comprobaciones, sin tocar la red (usa las tarifas fijas de `t/`). Verifican
 importes, la traducción de perfiles y, sobre todo, que los guardarraíles
 **abortan**:
 
@@ -294,6 +333,9 @@ importes, la traducción de perfiles y, sobre todo, que los guardarraíles
 - un valor del cliente que no casa con ningún patrón del mapa
 - un perfil con un campo que no es canónico
 - un `sizing` para el que ninguna máquina llega
+- dos recursos del mismo tipo con el mismo nombre
+- un `-` sin declarar en `vacios`, tanto en el sizing como en una cantidad
+- que el sizing por defecto **no** elija Arm, y que sí lo elija cuando se pide
 
 Ese segundo bloque es el que importa. El fallo peligroso de una calculadora no es
 el que se cae: es el que devuelve un número creíble y equivocado.

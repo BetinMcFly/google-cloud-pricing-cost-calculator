@@ -92,6 +92,20 @@ def leer_inventario(ruta):
         filas.append(fila)
     if not filas:
         raise ErrorInventario(f"{ruta}: no hay ninguna fila de inventario")
+    # Dos recursos del mismo tipo con el mismo nombre son indistinguibles en el
+    # CSV de costes, y un disco que apunte a ese nombre no sabe de que vm
+    # cuelga. No es un aviso: el resultado seria un numero creible y ambiguo.
+    vistos = {}
+    for fila in filas:
+        clave = (fila["tipo"], fila["nombre"])
+        if clave in vistos:
+            raise ErrorInventario(
+                f"{ruta}:{fila['_linea']}: nombre duplicado "
+                f"'{fila['nombre']}' para el tipo '{fila['tipo']}' "
+                f"(ya estaba en la linea {vistos[clave]}).\n"
+                f"  Cada recurso necesita un nombre unico: es lo que une un "
+                f"disco con su vm y lo que identifica la linea en la propuesta.")
+        vistos[clave] = fila["_linea"]
     return filas
 
 
